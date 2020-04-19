@@ -2,16 +2,23 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 public class GameLoop : MonoBehaviour {
+	public Sprite Healthy;
+	public Sprite Sick;
 	public Morale morale;
 	public PeopleCount people;
 	public SickPeople sick;
 	public GameObject Replay;
+	public GameObject Titel;
+	public GameObject Person;
+	public GameObject SickPerson;
+	public Transform peopleList;
 	float[] timers = new float[8];
+	List<GameObject> amountOfPeople = new List<GameObject>();
 	bool victory = false;
 	bool loss = false;
-	bool startScreen = false;
 	public enum ActiveModifier {
 		NONE,
 		HOSPITAL,
@@ -31,14 +38,59 @@ public class GameLoop : MonoBehaviour {
 	}
 
     void Start() {
-		
-    }
+		for (int i = 0; i < people.nrPeople - sick.nrSick; i++) {
+			amountOfPeople.Add(Instantiate(Person, peopleList));
+		}
+		for (int j = 0; j < sick.nrSick; j++) {
+			amountOfPeople.Add(Instantiate(SickPerson, peopleList));
+		}
+	}
+
+	public void KillSickPerson() {
+		for (int i = 0; i < amountOfPeople.Count; i++) {
+			if (peopleList.GetChild(i).name == "Sick(Clone)") {
+				Destroy(peopleList.GetChild(i).gameObject);
+				amountOfPeople.RemoveAt(i);
+				return;
+			}
+		}
+	}
+
+	public void MakeSickPerson() {
+		for (int i = 0; i < amountOfPeople.Count; i++) {
+			if (peopleList.GetChild(i).name == "Person(Clone)") {
+				peopleList.GetChild(i).name = "Sick(Clone)";
+				peopleList.GetChild(i).GetComponent<SpriteRenderer>().sprite = Sick;
+				return;
+			}
+		}
+	}
+
+	public void HealPerson() {
+		for (int i = 0; i < amountOfPeople.Count; i++) {
+			if (peopleList.GetChild(i).name == "Sick(Clone)") {
+				peopleList.GetChild(i).name = "Person(Clone)";
+				peopleList.GetChild(i).GetComponent<SpriteRenderer>().sprite = Healthy;
+				return;
+			}
+		}
+	}
+
+	public void KillPerson() {
+		Destroy(peopleList.GetChild(0).gameObject);
+		amountOfPeople.RemoveAt(0);
+	}
+
+	public void ToTitle() {
+		SceneManager.LoadScene("Start screen");
+	}
 
 	public void Win() {
 		victory = true;
 		Text winObj = GameObject.FindGameObjectWithTag("Win").GetComponent<Text>();
 		winObj.text = "You Defeated The Epidemic";
 		Replay.SetActive(true);
+		Titel.SetActive(true);
 	}
 
 	public void Restart() {
@@ -46,17 +98,17 @@ public class GameLoop : MonoBehaviour {
 			timers[i] = 0;
 		}
 		people.nrPeople = 100;
-		sick.nrSick = 1;
-		morale.morale = 100;
+		sick.nrSick = 20;
+		morale.morale = 50;
+		Replay.SetActive(false);
+		Titel.SetActive(false);
 		if (victory) {
 			Text winObj = GameObject.FindGameObjectWithTag("Win").GetComponent<Text>();
 			winObj.text = "";
-			Replay.SetActive(false);
 			victory = false;
 		} else if (loss) {
-			Text winObj = GameObject.FindGameObjectWithTag("Lose").GetComponent<Text>();
-			winObj.text = "";
-			Replay.SetActive(false);
+			Text loseObj = GameObject.FindGameObjectWithTag("Lose").GetComponent<Text>();
+			loseObj.text = "";
 			loss = false;
 		}
 		active = ActiveModifier.NONE;
@@ -64,13 +116,18 @@ public class GameLoop : MonoBehaviour {
 
 	public void Lose() {
 		loss = true;
-		Text winObj = GameObject.FindGameObjectWithTag("Lose").GetComponent<Text>();
-		winObj.text = "You lost. The epidemic has taken over";
+		Text loseObj = GameObject.FindGameObjectWithTag("Lose").GetComponent<Text>();
+		if (people.nrPeople == 0 || sick.nrSick == people.nrPeople) {
+			loseObj.text = "You lost. The epidemic has taken over";
+		} else if (morale.morale == 0) {
+			loseObj.text = "Morale is too low, people have started rioting";
+		}
 		Replay.SetActive(true);
+		Titel.SetActive(true);
 	}
 
     void Update() {
-		if (!victory && !loss && !startScreen) {
+		if (!victory && !loss) {
 			switch (active) {
 				case ActiveModifier.HOSPITAL:
 					if (sick.nrSick <= 0) {
@@ -85,12 +142,13 @@ public class GameLoop : MonoBehaviour {
 						Lose();
 					}
 
-					if (timers[0] > 0.45) {
+					if (timers[0] > 0.48) {
 						sick.nrSick--;
+						HealPerson();
 						timers[0] = 0;
 					}
 
-					if (timers[1] > 1) {
+					if (timers[1] > 0.7) {
 						morale.morale--;
 						timers[1] = 0;
 					}
@@ -112,6 +170,7 @@ public class GameLoop : MonoBehaviour {
 					if (timers[2] > 0.2) {
 						sick.nrSick--;
 						people.nrPeople--;
+						KillSickPerson();
 						timers[2] = 0;
 					}
 
@@ -147,18 +206,21 @@ public class GameLoop : MonoBehaviour {
 
 			if (timers[5] > 0.5) {
 				sick.nrSick++;
+				MakeSickPerson();
 				timers[5] = 0;
 			}
 
 			if (timers[6] > 2) {
 				people.nrPeople--;
 				sick.nrSick--;
+				KillSickPerson();
 				timers[6] = 0;
 			}
 
 			if (morale.morale < 1.5) {
 				if (timers[7] > 7) {
 					people.nrPeople--;
+					KillPerson();
 					timers[7] = 0;
 				}
 			}
